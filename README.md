@@ -1,112 +1,87 @@
+# 3x-ui Ultimate ISP Bypass Guide
 
-# Tunnel VPN Build  Phase 01: Foundation & Setup
-
-This phase lays the groundwork for your secure tunnel VPN. We'll set up a server, secure access, and link it to a custom domain.
-
----
-
-## Step 1: Create Your Ubuntu Server (VPS)
-
-### Purpose:
-Host your VPN tunnel on a remote Linux server.
-
-### âœ… Minimum Server Specs:
-| Spec     | Value            |
-|----------|------------------|
-| OS       | Ubuntu Server 22.04+ |
-| CPU      | 1 Core           |
-| RAM      | 1 GB             |
-| Storage  | 10â€“20 GB         |
-| Ports    | 80 (HTTP), 443 (HTTPS), 20 (FTP - optional) |
-
-### Recommended VPS Providers (Free for Students):
-- [Azure for Students](https://azure.microsoft.com/en-us/free/students/)
-- [GitHub Student Pack (DigitalOcean, etc.)](https://education.github.com/pack)
-- [Oracle Cloud Free Tier](https://www.oracle.com/cloud/free/)
-- [Google Cloud Free Tier](https://cloud.google.com/free)
-
-### Server Creation (Example: DigitalOcean)
-1. Sign up and create a new Droplet
-2. Select **Ubuntu 22.04 x64**
-3. Choose the Basic Plan: **1vCPU, 1GB RAM**
-4. Enable SSH key or password
-5. Choose a region near your target users
-6. **Allow the following ports** under "Networking" or "Firewall":
-   - Port `20`, `80`, `443`
-7. Deploy and note down your **serverâ€™s public IP**
+This is the complete working A to Z setup. This uses the MHSanaei 3x-ui fork, which is significantly more stable and feature rich than the original x-ui.
 
 ---
 
-## Step 2: Access the Server via SSH & Update
+## Phase 01: Infrastructure & DNS Setup
 
-### ðŸ“² SSH Clients:
-| Platform | Tool        |
-|----------|-------------|
-| Android  | [Termius](https://termius.com/), JuiceSSH |
-| Windows  | [PuTTY](https://www.putty.org/), Termius |
-| macOS/Linux | Terminal (built-in `ssh`) |
+First we prep the base and make sure Cloudflare and your server can talk correctly.
 
-### SSH Into the Server:
-```bash
-ssh root@your_server_ip
-```
+* Provision your VPS: A $5/mo basic instance with 1 vCPU and 1GB RAM is more than enough. Use **Ubuntu 22.04 or 24.04 LTS** for maximum compatibility.
+* Firewall Config: Open the following inbound ports on your VPS firewall:
+  * `80` and `443` for HTTP/HTTPS and SSL certificate issuance
+  * A custom high port (e.g. `54321`) for accessing the 3x-ui admin panel
 
-If prompted to trust the host, type `yes`.
-
-### Update & Install Essentials:
-```bash
-sudo apt update && sudo apt upgrade -y
-sudo apt install curl wget unzip git ufw -y
-```
-
-### ðm(Optional) Create a New Sudo User:
-```bash
-adduser yourname
-usermod -aG sudo yourname
-su - yourname
-```
+### Cloudflare Setup
+1.  Point your domain nameservers to Cloudflare
+2.  Create an A record: use a subdomain like `vpn.yourdomain.com` pointing to your VPS public IP
+3.  > [!WARNING]
+    > Critical: Set the Proxy Status to **DNS Only (Grey Cloud)** during setup. You can turn proxy on *after* SSL has been successfully issued.
 
 ---
 
-## Step 3: Buy a Domain & Set Up DNS
+## Phase 02: Server Prepping & SSL
 
-### ðŸmmBuy a Domain:
-Use any of these:
-- [Namecheap](https://namecheap.com)
-- [Spaceship](https://spaceship.com)
-- [Porkbun](https://porkbun.com)
-- [Freenom](https://freenom.com) *(Free domains like .tk, .ml)*
+Connect to your server over SSH to run these steps.
 
-> Choose something simple and clean, e.g., `mytunnel.zone` or `safefox.net`
+1.  First run standard system updates:
+    ```bash
+    sudo apt update && sudo apt upgrade -y
+    ```
 
----
+2.  Install 3x-ui using the official MHSanaei script:
+    ```bash
+    bash <(curl -Ls https://raw.githubusercontent.com/MHSanaei/3x-ui/master/install.sh)
+    ```
 
-### Connect to Cloudflare:
-1. Sign up at [Cloudflare](https://cloudflare.com)
-2. Add your domain to Cloudflare
-3. Cloudflare will give you **two nameservers**
-4. Go to your domain registrar, replace nameservers with the ones from Cloudflare
-
----
-
-### Add a VPN Subdomain:
-On Cloudflare â† "Add Record":
-- Type: `A`
-- Name: `vpn` *(this becomes `vpn.yourdomain.com`)*
-- IPv4 Address: **your serverâ€™s IP**
-- TTL: Auto
-- Proxy status: **DNS Only (turn off orange cloud)**
-
->Do not proxy the record via Cloudflare â€” it must be "DNS Only" for VPN traffic to work.
+3.  SSL Generation (this is the part everyone messes up):
+    1.  Type `x-ui` in your terminal to open the 3x-ui management menu
+    2.  Select **Option 19: Cloudflare SSL Certificate**
+    3.  Follow the prompts to issue a certificate for your subdomain. This makes your traffic look identical to normal HTTPS web traffic.
 
 ---
 
-## Summary of Phase 01:
+## Phase 03: Panel Configuration
 
-- Ubuntu 22.04+ server deployed and running
-- SSH access working and packages updated
-- Domain bought, connected to Cloudflare
-- Subdomain pointing to your server's IP (e.g., `vpn.yourdomain.com`)
+1.  Access the admin panel by visiting `http://<your-vps-ip>:<your-custom-port>` in your browser
+2.  > [!WARNING]
+    > First thing you do: go to Settings and change the default username, password, and set a custom panel URL root. Do not leave the defaults in place.
+3.  For standard unblocking use VLESS + Reality or VMess + TLS. These are the current gold standard for defeating deep packet inspection.
 
 ---
 
+## Phase 04: The Bypass Configuration (ISP Spoofing)
+
+This is the part that turns restricted Work & Learn / Zoom / zero rated data into unlimited unrestricted data.
+
+1.  Create a new inbound with the following settings:
+    | Setting | Value |
+    |---|---|
+    | Protocol | `VLESS` (recommended for speed) / `VMess` |
+    | Port | `443` **this is mandatory** |
+    | Transmission | `ws` (Websocket, most stable for bypass) / `grpc` |
+
+2.  Security & TLS Settings:
+    * Set TLS to `Enabled`
+    * **SNI**: Enter the host whitelisted by your ISP zero rate package:
+      * Dialog Work & Learn / MS Office packs: `aka.ms` or `teams.microsoft.com`
+      * Zoom packs: `zoom.us`
+    * Select the SSL certificate you generated in Phase 02
+
+3.  Client side setup (netmod / Shadowrocket / v2rayN):
+    * Import the config via QR code from the 3x-ui panel
+    * Open the config settings on your device
+    * Confirm the **SNI** field is set exactly to the whitelisted host you used above
+    * Set Header Type to `none` and confirm the Host field matches your SNI.((if only prompted to)
+
+---
+
+### How this works
+
+When your ISP runs deep packet inspection on your connection, it only sees a TLS connection going to port 443 with an SNI of `aka.ms`. It marks this as allowed zero rated traffic and counts it against your Work & Learn quota instead of your paid anytime data.
+
+> [!TIP]
+> Watch your anytime data balance the first 10 minutes you use this. If your anytime data goes down, your SNI is wrong, or your ISP uses IP based whitelisting instead of SNI.
+
+---
