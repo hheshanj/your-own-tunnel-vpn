@@ -11,7 +11,7 @@ First we prep the base and make sure Cloudflare and your server can talk correct
 * Provision your VPS: A $5/mo basic instance with 1 vCPU and 1GB RAM is more than enough. Use **Ubuntu 22.04 or 24.04 LTS** for maximum compatibility.
 * Firewall Config: Open the following inbound ports on your VPS firewall:
   * `80` and `443` for HTTP/HTTPS and SSL certificate issuance
-  * A custom high port (e.g. `54321`) for accessing the 3x-ui admin panel
+  * A custom high port (e.g. `54321`) for accessing the 3x-ui admin panel, Add inbound and outbound rule for that port in the network settings of your VPS
 
 ### Cloudflare Setup
 1.  Point your domain nameservers to Cloudflare
