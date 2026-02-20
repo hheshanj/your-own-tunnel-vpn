@@ -16,8 +16,9 @@ First we prep the base and make sure Cloudflare and your server can talk correct
 ### Cloudflare Setup
 1.  Point your domain nameservers to Cloudflare
 2.  Create an A record: use a subdomain like `vpn.yourdomain.com` pointing to your VPS public IP
+
 3.  > [!WARNING]
-    > Critical: Set the Proxy Status to **DNS Only (Grey Cloud)** during setup. You can turn proxy on *after* SSL has been successfully issued.
+    > Critical: Set the Proxy Status to **DNS Only (Grey Cloud)** during setup. You can turn proxy on *after* SSL has been successfully issued (optional, not recommended)
 
 ---
 
