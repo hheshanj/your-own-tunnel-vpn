@@ -1,88 +1,277 @@
+
 # 3x-ui Ultimate ISP Bypass Guide
 
-This is the complete working A to Z setup. This uses the MHSanaei 3x-ui fork, which is significantly more stable and feature rich than the original x-ui.
+> **The complete A to Z working setup for turning restricted educational data into unrestricted tunnel traffic.**
+
+This guide uses the **[MHSanaei 3x-ui fork](https://github.com/MHSanaei/3x-ui)** — significantly more stable, actively maintained, and feature-rich than the original x-ui or other forks.
+
+---
+
+## 📋 Prerequisites
+
+Before starting, make sure you have:
+- A domain name (Namecheap, Porkbun, or any registrar works)
+- Cloudflare account (free tier is sufficient)
+- VPS with root access (any provider: Racknerd, PQ.Hosting, Vultr, DigitalOcean)
+- SSH client (Termius, PuTTY, or terminal)
 
 ---
 
 ## Phase 01: Infrastructure & DNS Setup
 
-First we prep the base and make sure Cloudflare and your server can talk correctly.
+### 1.1 VPS Provisioning
 
-* Provision your VPS: A $5/mo basic instance with 1 vCPU and 1GB RAM is more than enough. Use **Ubuntu 22.04 or 24.04 LTS** for maximum compatibility.
-* Firewall Config: Open the following inbound ports on your VPS firewall:
-  * `80` and `443` for HTTP/HTTPS and SSL certificate issuance
-  * A custom high port (e.g. `54321`) for accessing the 3x-ui admin panel, Add inbound and outbound rule for that port in the network settings of your VPS
+A **$5/month** instance is more than enough:
+- **Minimum specs:** 1 vCPU, 1GB RAM, 20GB SSD
+- **Recommended OS:** Ubuntu 22.04 LTS or 24.04 LTS
+- **Region:** Choose one geographically close to your users
 
-### Cloudflare Setup
-1.  Point your domain nameservers to Cloudflare
-2.  Create an A record: use a subdomain like `vpn.yourdomain.com` pointing to your VPS public IP
+### 1.2 Firewall Configuration
 
-3.  > ⚠️
-    > Critical: Set the Proxy Status to **DNS Only (Grey Cloud)** during setup. You can turn proxy on *after* SSL has been successfully issued (optional, not recommended)
+Open these inbound ports in your VPS firewall (UFW or provider dashboard):
+
+| Port | Purpose |
+|------|---------|
+| `80` | HTTP (Let's Encrypt / ACME challenge) |
+| `443` | HTTPS (main tunnel traffic) |
+| `54321` (example) | 3x-ui admin panel access |
+
+```bash
+sudo ufw allow 80/tcp
+sudo ufw allow 443/tcp
+sudo ufw allow 54321/tcp
+sudo ufw enable
+```
+
+### 1.3 Cloudflare DNS Setup
+
+1. Point your domain's nameservers to Cloudflare (done at your registrar)
+2. In Cloudflare Dashboard → DNS → Records, add:
+   - **Type:** `A`
+   - **Name:** `vpn` (creates `vpn.yourdomain.com`)
+   - **IPv4 address:** Your VPS public IP
+   - **Proxy status:** ☁️ **DNS only (grey cloud)**
+
+> ⚠️ **Critical:** Keep it grey until SSL is issued. Enabling proxy (orange cloud) will break the certificate issuance.
 
 ---
 
-## Phase 02: Server Prepping & SSL
+## Phase 02: Server Setup & SSL
 
-Connect to your server over SSH to run these steps.
+SSH into your server and run:
 
-1.  First run standard system updates:
-    ```bash
-    sudo apt update && sudo apt upgrade -y
-    ```
+### 2.1 System Preparation
 
-2.  Install 3x-ui using the official MHSanaei script:
-    ```bash
-    bash <(curl -Ls https://raw.githubusercontent.com/MHSanaei/3x-ui/master/install.sh)
-    ```
+```bash
+sudo apt update && sudo apt upgrade -y
+sudo apt install -y curl wget socat
+```
 
-3.  SSL Generation (this is the part everyone messes up):
-    1.  Type `x-ui` in your terminal to open the 3x-ui management menu
-    2.  Select **Option 19: Cloudflare SSL Certificate**
-    3.  Follow the prompts to issue a certificate for your subdomain. This makes your traffic look identical to normal HTTPS web traffic.
+### 2.2 Install 3x-ui
+
+```bash
+bash <(curl -Ls https://raw.githubusercontent.com/MHSanaei/3x-ui/master/install.sh)
+```
+
+During installation, note down:
+- Panel port (default: `2053` or your custom choice)
+- Default username and password (displayed at end)
+
+### 2.3 Generate SSL Certificate
+
+This is where most people fail. Follow carefully:
+
+```bash
+x-ui
+```
+
+Select **Option 19: Cloudflare SSL Certificate** and follow prompts:
+1. Enter your Cloudflare **Global API Key** (from Cloudflare Dashboard → My Profile → API Tokens)
+2. Enter your **email** associated with Cloudflare
+3. Enter your **full subdomain** (`vpn.yourdomain.com`)
+
+✅ **Success indicator:** Certificate files created in `/root/cert/`
+
+> 💡 **Pro Tip:** If Option 19 fails, use **Option 18 (Let's Encrypt)** instead. Both work, but Cloudflare's method is faster and uses ECC certificates (smaller, faster).
 
 ---
 
 ## Phase 03: Panel Configuration
 
-1.  Access the admin panel by visiting `http://<your-vps-ip>:<your-custom-port>` in your browser
-2.  > [!WARNING]
-    > First thing you do: go to Settings and change the default username, password, and set a custom panel URL root. Do not leave the defaults in place.
-3.  For standard unblocking use VLESS + Reality or VMess + TLS. These are the current gold standard for defeating deep packet inspection.
+### 3.1 Access the Panel
+
+Visit: `http://<VPS-IP>:<PANEL-PORT>`
+
+Example: `http://123.45.67.89:54321`
+
+### 3.2 Security Hardening (Do This FIRST)
+
+Navigate to **Settings** and change:
+
+| Setting | Recommendation |
+|---------|----------------|
+| Username | Anything except `admin` |
+| Password | 16+ characters, random |
+| Panel path | `/your-secret-path/` (not `/xui/`) |
+| Panel port | Keep high port or change to something else |
+
+> 🔒 **Why this matters:** Automated bots scan for `/xui`, `/x-ui`, `/panel` paths. Custom paths prevent 99% of brute force attempts.
+
+### 3.3 Create Base Inbound (Standard Bypass)
+
+Go to **Inbounds** → **Add Inbound**:
+
+**For maximum stealth (recommended):**
+- **Protocol:** `vless`
+- **Transport:** `reality`
+- **Port:** `443`
+- **TLS:** `reality`
+- **Show advanced:** Enable `uTLS` with `chrome` fingerprint
+
+**For compatibility (if reality fails):**
+- **Protocol:** `vmess` or `vless`
+- **Transport:** `ws`
+- **Port:** `443`
+- **TLS:** `tls`
+- **Path:** `/your-ws-path`
 
 ---
 
-## Phase 04: The Bypass Configuration (ISP Spoofing)
+## Phase 04: ISP Bypass Configuration (Zero-Rating Spoof)
 
-This is the part that turns restricted Work & Learn / Zoom / zero rated data into unlimited unrestricted data.
+> **This is the money shot.** This configuration tricks your ISP into billing your traffic against whitelisted services instead of regular data.
 
-1.  Create a new inbound with the following settings:
-    | Setting | Value |
-    |---|---|
-    | Protocol | `VLESS` (recommended for speed) / `VMess` |
-    | Port | `443` **this is mandatory** |
-    | Transmission | `ws` (Websocket, most stable for bypass) / `grpc` |
+### 4.1 Create Bypass Inbound
 
-2.  Security & TLS Settings:
-    * Set TLS to `Enabled`
-    * **SNI**: Enter the host whitelisted by your ISP zero rate package:
-      * Dialog Work & Learn / MS Office packs: `aka.ms` or `teams.microsoft.com`
-      * Zoom packs: `zoom.us`
-    * Select the SSL certificate you generated in Phase 02
+**Protocol Settings:**
+| Field | Value |
+|-------|-------|
+| Protocol | `vless` |
+| Port | `443` ⚠️ **Must be 443** |
+| Transport | `ws` (most reliable) or `grpc` |
+| TLS | `tls` |
 
-3.  Client side setup (netmod / Shadowrocket / v2rayN):
-    * Import the config via QR code from the 3x-ui panel
-    * Open the config settings on your device
-    * Confirm the **SNI** field is set exactly to the whitelisted host you used above
-    * Set Header Type to `none` and confirm the Host field matches your SNI.((if only prompted to)
+**TLS/SNI Settings:**
+- **SNI (Server Name Indication):** The whitelisted hostname
+- **Certificates:** Select the SSL cert from Phase 2.3
+
+### 4.2 SNI Mapping by ISP Package
+
+| ISP Package | Recommended SNI | Alternative SNI |
+|-------------|-----------------|-----------------|
+| Dialog Work & Learn | `aka.ms` | `teams.microsoft.com`, `office.com` |
+| Dialog Zoom | `zoom.us` | `zoom.com` |
+| Hutch Work From Home | `aka.ms` | `microsoft.com` |
+| Airtel Edu Pack | `google.com` | `classroom.google.com` |
+| SLT Fiber Edu | `zoom.us` | `microsoft.com` |
+
+> 🔍 **How to find your SNI:** Check your ISP's official website for their zero-rated package. The SNI is usually the primary domain they advertise (e.g., "Unlimited Zoom" → `zoom.us`).
+
+### 4.3 Client Configuration
+
+**Android (v2rayNG):**
+1. Tap QR code from 3x-ui panel → Scan
+2. Long press config → **Edit**
+3. Scroll to **TLS Settings** → Set **SNI** = your chosen hostname
+4. **Host** field must match SNI exactly
+5. **Header Type:** `none`
+
+**iOS (Shadowrocket):**
+1. Import config via QR code
+2. Tap config → **Edit Server**
+3. **TLS SNI:** Enter your hostname
+4. **TLS Host:** Same as SNI
+5. Save and connect
+
+**Windows (v2rayN):**
+1. Import config (VMess) from panel
+2. Right-click config → **Edit**
+3. **Stream Settings** → **TLS** → **Server Name:** your SNI
+4. **Host:** same value
+5. Apply and connect
 
 ---
 
-### How this works
+## 🧠 How It Works (The Bro-Science)
 
-When your ISP runs deep packet inspection on your connection, it only sees a TLS connection going to port 443 with an SNI of `aka.ms`. It marks this as allowed zero rated traffic and counts it against your Work & Learn quota instead of your paid anytime data.
+```
+Your Device → [Encrypted Tunnel] → Your VPS → Internet
+                ↑
+         SNI: aka.ms
+         Port: 443
+```
 
-> [!TIP]
-> Watch your anytime data balance the first 10 minutes you use this. If your anytime data goes down, your SNI is wrong, or your ISP uses IP based whitelisting instead of SNI.
+When your ISP's **Deep Packet Inspection (DPI)** examines your traffic:
+1. Sees TLS handshake on port **443** (standard HTTPS port)
+2. Reads the **SNI field** = `aka.ms` (Microsoft domain)
+3. Thinks: "Student doing homework on Microsoft Teams"
+4. Bills against **Work & Learn quota**, not **Anytime data**
+
+**What the ISP CANNOT see:**
+- Your actual destination (YouTube, Netflix, etc.)
+- That you're tunneling through a VPS
+- Anything inside the encrypted TLS tunnel
 
 ---
+
+## ⚠️ Troubleshooting
+
+### Connection Slow / High Latency
+- **Cause:** Wrong server region or ISP throttling
+- **Fix:** Try a VPS closer to your location; switch transport from `ws` to `grpc`
+
+### Anytime Data Still Decreasing
+- **Cause:** Wrong SNI or ISP uses **IP-based whitelisting**
+- **Fix:** Try alternative SNI from table above; check if your ISP whitelists by IP (rare but possible)
+
+### "Certificate Invalid" on Client
+- **Cause:** System time mismatch or wrong SNI
+- **Fix:** Sync device time; ensure client SNI matches server SNI exactly
+
+### Panel Won't Load After Reboot
+- **Cause:** 3x-ui service not starting
+- **Fix:**
+  ```bash
+  x-ui restart
+  ```
+  Check logs:
+  ```bash
+  x-ui log
+  ```
+
+### Cloudflare SSL Option Missing
+- **Cause:** Outdated 3x-ui version
+- **Fix:** Update:
+  ```bash
+  x-ui update
+  ```
+
+---
+
+
+## 📱 Quick Reference Card
+
+```yaml
+Protocol: vless
+Port: 443
+Transport: ws
+TLS: enabled
+SNI: aka.ms (or your ISP's whitelisted domain)
+Path: /random-string
+```
+
+---
+
+## 📚 Resources
+
+- [3x-ui GitHub](https://github.com/MHSanaei/3x-ui)
+- [XTLS/Xray Documentation](https://xtls.github.io/)
+- [v2rayNG (Android)](https://github.com/2dust/v2rayNG)
+- [Shadowrocket (iOS)](https://apps.apple.com/app/shadowrocket/id932747118)
+- [v2rayN (Windows)](https://github.com/2dust/v2rayN)
+
+---
+
+> **Disclaimer:** This guide is for educational purposes. Use responsibly and in compliance with your ISP's terms of service. The authors are not responsible for any misuse.
+
+
